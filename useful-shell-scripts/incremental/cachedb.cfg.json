@@ -1,0 +1,31 @@
+[
+    
+    {
+      "ParameterKey": "InfrastructureStackName",
+      "ParameterValue": "lab-stack-test-v4"
+    },
+    {
+      "ParameterKey": "EnvironmentName",
+      "ParameterValue": "lab"
+    },
+    {
+      "ParameterKey": "MemcacheNodeType",
+      "ParameterValue": "cache.t2.micro"
+    },
+    {
+      "ParameterKey":"MemcacheNodeCount",
+      "ParameterValue": "1"
+    },
+    {
+      "ParameterKey": "RedisNodeType",
+      "ParameterValue": "cache.t2.micro"
+    },
+    {
+      "ParameterKey": "PostgresInstanceClass",
+      "ParameterValue": "db.t2.small"
+    },
+    {
+      "ParameterKey":"TemplateBucket",
+      "ParameterValue": "cloudformation-deserve-cards-test"
+    }
+]

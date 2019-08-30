@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates Task definition and Service with related resources
+
+Parameters:
+
+  ScoringDockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+  MlDockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    AllowedValues:
+      - prod
+      - stage
+    ConstraintDescription: Specify either stage or prod
+
+  # stack creation prerequisite:  First create a VPC stack - see README for more info
+  NetworkStackName:
+    Description: Active CloudFormation stack containing VPC resources
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+
+  ServiceWebLbCertificateArn:
+    Description: HTTPS SSL Certificate to use for the service loadbalancer
+    Type: String
+
+Resources:
+
+##Service definition for scoring
+  scorigservice:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRulescoring
+    Properties:
+      ServiceName: deserve-scoring
+      TaskDefinition: !Ref Taskscoring
+      Cluster: !ImportValue 'ECSClusterDSA'
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet1ID
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet2ID
+          SecurityGroups:
+            - !ImportValue ContainerSecurityGroupDSA
+      LoadBalancers:
+        - ContainerName: scoring
+          ContainerPort: 80
+          TargetGroupArn: !Ref ServiceWebTargetGroupscoring
+
+  ServiceWebTargetGroupscoring:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: dsa-scoring-targetgroup
+      VpcId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-VpcID
+      #changed here
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-499
+      HealthCheckIntervalSeconds: 300
+      HealthCheckPath: /echo
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 10
+      TargetType: ip
+
+  LoadBalancerListenerscoring:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !ImportValue LoadBalancerArn-SCORING
+      Protocol: HTTPS
+      Port: 443
+      Certificates :
+        - CertificateArn: !Ref ServiceWebLbCertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceWebTargetGroupscoring
+
+  ListenerRulescoring:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ServiceWebTargetGroupscoring
+    Properties:
+      ListenerArn: !Ref LoadBalancerListenerscoring
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /*
+      Actions:
+        - TargetGroupArn: !Ref ServiceWebTargetGroupscoring
+          Type: forward
+##service definition for ML
+  mlservice:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRuleml
+    Properties:
+      ServiceName: deserve-ml
+      TaskDefinition: !Ref Taskml
+      Cluster: !ImportValue 'ECSClusterDSA'
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet1ID
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet2ID
+          SecurityGroups:
+            - !ImportValue ContainerSecurityGroupDSA
+      LoadBalancers:
+        - ContainerName: ml
+          ContainerPort: 80
+          TargetGroupArn: !Ref ServiceWebTargetGroupML
+
+    ServiceWebTargetGroupML:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        Name: dsa-ml-targetgroup
+        VpcId:
+          Fn::ImportValue: !Sub ${NetworkStackName}-VpcID
+        #changed here
+        Port: 80
+        Protocol: HTTP
+        Matcher:
+          HttpCode: 200-499
+        HealthCheckIntervalSeconds: 300
+        HealthCheckPath: /
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 120
+        HealthyThresholdCount: 10
+        TargetType: ip
+
+    LoadBalancerListenerml:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        LoadBalancerArn: !ImportValue LoadBalancerArn-ML
+        Protocol: HTTPS
+        Port: 443
+        Certificates:
+          - CertificateArn: !Ref ServiceWebLbCertificateArn
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn: !Ref ServiceWebTargetGroupML
+
+    ListenerRuleml:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      DependsOn: ServiceWebTargetGroupML
+      Properties:
+        ListenerArn: !Ref LoadBalancerListenerml
+        Priority: 2
+        Conditions:
+          - Field: path-pattern
+            Values:
+              - /*
+        Actions:
+          - TargetGroupArn: !Ref ServiceWebTargetGroupML
+            Type: forward
+
+  ##Task definition for scoring
+  Taskscoring:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: scoring
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: scoring
+          Image: !Ref ScoringDockerImage
+          Cpu: 1024
+          Memory: 4096
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 0
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'dsa-scoring'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'dsa-scoring'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+##Task definition for ML
+  Taskml:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: ml
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: ml
+          Image: !Ref MlDockerImage
+          Cpu: 1024
+          Memory: 4096
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 0
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'dsa-ml'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'dsa-ml'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+
+#python manage.py create_demo_data
+
+Outputs:
+
+  ApiEndpoint:
+    Description: Application home page
+    Value: !Join ['', ['http://', !ImportValue DomainName]]
+    Export:
+      Name: 'SampleHomePage'
+
+  LoadBalancerListener:
+    Description: listener port 8001
+    Value: !Ref LoadBalancerListener
+    Export:
+      Name: 'LoadBalancerListener'

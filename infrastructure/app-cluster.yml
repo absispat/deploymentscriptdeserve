@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Container cluster on ECS, loadbalancer, security groups and cloudwatch
+
+Parameters:
+
+  # stack creation prerequisite:  First create a VPC stack - see README for more info
+  NetworkStackName:
+    Description: Active CloudFormation stack containing VPC resources
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+    Default: 'lab-stack-test-VpcStack-RRZ4Q0IA18QP'
+
+Resources:
+
+  # We are intentionally not specifying the cluster name, because of following reason:
+  # If you specify a name, you cannot perform updates that require replacement of this resource.
+  # You can perform updates that require no or some interruption.
+  # If you must replace the resource, specify a new name.
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ecs-dsa
+      Subnets:
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet1ID
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet2ID
+        - Fn::ImportValue: !Sub ${NetworkStackName}-PublicSubnet3ID
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for loadbalancer to services on ECS
+      VpcId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-VpcID
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      Tags:
+      - Key: Name
+        Value: !Sub "${AWS::StackName}-LbSecurityGroup"
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: 'service-dsa'
+      RetentionInDays: 7
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+     VpcId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-VpcID
+     GroupDescription: for ecs containers
+     SecurityGroupIngress:
+       - SourceSecurityGroupId: !Ref 'LoadBalancerSecurityGroup'
+         IpProtocol: -1
+
+  DBSecurityInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+        - ContainerSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-DbSecurityGroupId
+
+  RedisSecurityInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+        - ContainerSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-RedisSecurityGroupId
+
+Outputs:
+
+  Cluster:
+    Value: !Ref ECSCluster
+    Export:
+      Name: 'ECSCluster'
+
+  ClusterArn:
+    Description: This role is used for Task Execution.
+    Value: !GetAtt 'ECSCluster.Arn'
+    Export:
+      Name: 'ECSClusterArn'
+
+  ContainerSecurityGroup:
+    Description: container security group
+    Value: !Ref ContainerSecurityGroup
+    Export:
+      Name: 'ContainerSecurityGroup'
+
+  LoadBalancerDNS:
+    Description: Domain name for the loadbalancer
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: 'DomainName'
+
+  LoadBalancer:
+    Description: Domain name for the loadbalancer
+    Value: !Ref LoadBalancer
+    Export:
+      Name: 'LoadBalancerArn'

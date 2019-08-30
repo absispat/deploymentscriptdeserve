@@ -1,0 +1,48 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deserved cards cloudformation scripts to generate fargate based complete stack
+
+
+Parameters:
+
+  InfrastructureStackName:
+    Type: String
+    Description: Name of the stack containing VPC and other infrastructure components
+    
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket to get the CloudFormation templates
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: stage
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  DockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+
+  ServiceWebLbCertificateArn:
+    Description: HTTPS SSL Certificate to use for the service loadbalancer
+    Type: String    
+
+Resources:
+
+  ServiceWebStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/services/service-web.yml
+      Parameters:
+        NetworkStackName:
+          Fn::ImportValue: 
+            !Sub ${InfrastructureStackName}-VpcStackName
+        EnvironmentName: !Ref EnvironmentName
+        DockerImage: !Ref DockerImage
+        ServiceWebLbCertificateArn: !Ref ServiceWebLbCertificateArn
+

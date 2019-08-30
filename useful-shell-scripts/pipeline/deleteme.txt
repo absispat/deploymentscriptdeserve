@@ -1,0 +1,4 @@
+        "arn:aws:ecs:us-east-2:255862263184:task-definition/service-web:193",
+        "arn:aws:ecs:us-east-2:255862263184:task-definition/service-web:194",
+        "arn:aws:ecs:us-east-2:255862263184:task-definition/service-web:195",
+        "arn:aws:ecs:us-east-2:255862263184:task-definition/service-web:196",

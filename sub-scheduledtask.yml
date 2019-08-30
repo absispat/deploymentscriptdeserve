@@ -1,0 +1,257 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deserved cards cloudformation scripts to generate fargate based complete stack
+
+
+Parameters:
+
+  InfrastructureStackName:
+    Type: String
+    Description: Name of the stack containing VPC and other infrastructure components
+
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket to get the CloudFormation templates
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: stage
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  DockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+
+Resources:
+
+  ProcessDuplicates:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-processduplicates.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: processduplicates
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: TriggerEmails
+
+
+  TriggerEmails:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-triggeremails.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: triggeremails
+        ScheduleExpression: "cron(0 * * * ? *)"
+    DependsOn: SendacliEmails
+
+
+  SendacliEmails:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-sendacliemails.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: sendacliemails
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: Triggerrejectionemails
+
+
+  Triggerrejectionemails:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-triggerrejectionemails.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: triggerrejectionemails
+        ScheduleExpression: "cron(1 2/6 * * ? *)"
+    DependsOn: Processincomplete
+
+  Processincomplete:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-processincomplete.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: processincomplete
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: Clireminders
+
+  Clireminders:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-clireminders.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: clireminders
+        ScheduleExpression: "cron(0 */5 * * ? *)"
+    DependsOn: Notifyclieligibility
+
+  Notifyclieligibility:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-notifyclieligibility.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: notifyclieligibility
+        ScheduleExpression: "cron(0 11 * * ? *)"
+    DependsOn: Intercomsync
+
+  Intercomsync:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-intercomsync.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: intercomsync
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: Scheduletexts
+
+  Scheduletexts:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-scheduletexts.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: scheduletexts
+        ScheduleExpression: "cron(*/5 * * * ? *)"
+    DependsOn: Triggertexts
+
+  Triggertexts:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-triggertexts.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: triggertexts
+        ScheduleExpression: "cron(*/10 * * * ? *)"
+    DependsOn: Needsinfoemailsender
+
+  Needsinfoemailsender:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-needsinfoemailsender.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: needsinfoemailsender
+        ScheduleExpression: "cron(*/10 * * * ? *)"
+    DependsOn: Pulltransactions
+
+  Pulltransactions:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-pulltransactions.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: pulltransactions
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: Creditlineincrease
+
+  Creditlineincrease:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-creditlineincrease.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: creditlineincrease
+        ScheduleExpression: "cron(0 */6 * * ? *)"
+    DependsOn: Emailaastats
+
+  Emailaastats:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-emailaastats.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: emailaastats
+        ScheduleExpression: "cron(30 14 * * ? *)"
+    DependsOn: Emailaawarning
+
+  Emailaawarning:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-emailaawarning.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: emailaawarning
+        ScheduleExpression: "cron(35 14 * * ? *)"
+    DependsOn: Pruneplaidtokens
+
+  Pruneplaidtokens:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/scheduledtasks/st-pruneplaidtokens.yml
+      Parameters:
+        DockerImage: !Ref DockerImage
+        EnvironmentName: !Ref EnvironmentName
+        NetworkStackName:
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        TaskName: pruneplaidtokens
+        ScheduleExpression: "cron(0 5 * * ? *)"

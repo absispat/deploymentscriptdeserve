@@ -1,0 +1,77 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deserved cards cloudformation scripts to generate fargate based complete stack
+
+
+Parameters:
+
+  S3Bucket:
+    Default: cloudformation-deserve-cards-pipeline-lab2
+    Description: The name of the S3 bucket that contains the source artifact, which must be in the same region as this stack
+    Type: String
+
+  Email:
+    Description: Email for the stack events
+    Type: String
+    
+
+  SourceS3Key:
+    Default: static-cloudformation-artifact.zip
+    Description: The file name of the source artifact
+    Type: String
+
+  TemplateBucket:
+    Type: String
+    Default: cloudformation-deserve-cards-pipeline-lab2
+    Description: S3 bucket to get the CloudFormation templates
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: lab
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  DockerImage:
+    Type: String
+    Default: "761539273697.dkr.ecr.us-east-1.amazonaws.com/static-web:Infra-cf-changes-SAHAJ3e"
+    Description: This provides the image that need to be deployed
+
+  # --- Postgres related params ends here ----
+  #NatEIPAllocationId1:
+  #  Description: Allocation Id of NAT elastic IP 1.
+  #  Default: "eipalloc-0274b4d8ad99f0856"
+  #  Type: String
+
+  #NatEIPAllocationId2:
+  #  Description: Allocation Id of NAT elastic IP 2. Not required if SingleNatGateway is true.
+  #  Type: String
+  #  Default: ''
+
+
+Resources:
+
+  Infrastructure:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/sub-infrastructure.yml
+      Parameters:
+        TemplateBucket: !Ref TemplateBucket
+        EnvironmentName: !Ref EnvironmentName
+        #NatEIPAllocationId1: !Ref NatEIPAllocationId1
+        #NatEIPAllocationId2: !Ref NatEIPAllocationId2
+
+
+  CacheDB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/sub-cachedb.yml
+      Parameters:
+        TemplateBucket: !Ref TemplateBucket
+        InfrastructureStackName: !GetAtt Infrastructure.Outputs.Name
+        EnvironmentName: !Ref EnvironmentName
+    DependsOn: Infrastructure

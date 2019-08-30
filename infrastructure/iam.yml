@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Roles and policies required for other stacks
+
+Resources:
+
+  ServiceWebExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: ServiceWebExecutionPolicy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                # ECS Tasks to download images from ECR
+                - 'ecr:GetAuthorizationToken'
+                - 'ecr:BatchCheckLayerAvailability'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:BatchGetImage'
+                # ECS tasks to upload logs to CloudWatch
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: '*'
+
+  ServiceWebTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: ServiceWebTaskPolicy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                # ECS tasks to access SSM 
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:DescribeParameters
+                - ssm:GetParametersByPath                
+              Resource: '*'
+              
+  ScheduledTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [events.amazonaws.com, ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: scheduled-task-policy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - ecs:RunTask
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:DescribeParameters
+                - ssm:GetParametersByPath                
+              Resource: '*'
+             
+Outputs:
+
+  ScheduleTaskECSEventRole:
+    Description: This role is used for Task Execution.
+    Value: !GetAtt 'ScheduledTaskRole.Arn'
+    Export:
+      Name: 'ScheduleTaskECSEventRoleArn'
+
+  ServiceWebExecutionRole:
+    Description: This role is used for Task Execution.
+    Value: !GetAtt 'ServiceWebExecutionRole.Arn'
+    Export:
+      Name: 'ServiceWebExecutionRoleArn'
+  
+  ServiceWebTaskRole:
+    Description: This role is used by applications running inside container to use AWS API
+    Value: !GetAtt 'ServiceWebTaskRole.Arn'
+    Export:
+      Name: 'ServiceWebTaskRoleArn'

@@ -1,0 +1,18 @@
+[
+    {
+      "ParameterKey": "InfrastructureStackName",
+      "ParameterValue": "stg-deserve-Infrastructure-196SN3OC227WW"
+    },
+    {
+      "ParameterKey": "EnvironmentName",
+      "ParameterValue": "stage"
+    },
+    {
+      "ParameterKey": "DockerImage",
+      "ParameterValue": "761539273697.dkr.ecr.us-east-1.amazonaws.com/static-web:deserve-03f3b5b1"
+    },
+    {
+      "ParameterKey": "TemplateBucket",
+      "ParameterValue": "cloudformation-deserve-cards-pipeline-lab2"
+    }
+]

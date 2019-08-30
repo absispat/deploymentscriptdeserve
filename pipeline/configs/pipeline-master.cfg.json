@@ -1,0 +1,7 @@
+{
+  "Parameters": {
+     "EnvironmentName": "lab",
+     "DockerImage": "761539273697.dkr.ecr.us-east-1.amazonaws.com/static-web:Infra-cf-changes-SAHAJ3e",
+     "TemplateBucket": "cloudformation-deserve-cards-pipeline-lab2"
+  }
+}

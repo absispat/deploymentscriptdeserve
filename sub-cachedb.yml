@@ -1,0 +1,140 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deserved cards cloudformation scripts to generate fargate based complete stack
+
+
+Parameters:
+
+  InfrastructureStackName:
+    Type: String
+    Description: Name of the stack containing VPC and other infrastructure components
+    
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket to get the CloudFormation templates
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: stage
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  MemcacheNodeType:
+    Description: Cache node instance class, e.g. cache.t2.micro(free tier). See https://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/CacheNodes.SelectSize.html
+    Type: String
+    Default: cache.t2.micro
+    ConstraintDescription: Node instance class not supported
+    AllowedValues:
+      - cache.t2.micro
+      - cache.t2.small
+      - cache.t2.medium
+      - cache.m4.large
+      - cache.m4.xlarge
+      - cache.m4.2xlarge
+      - cache.m4.4xlarge
+      - cache.m4.10xlarge
+      - cache.r4.large
+      - cache.r4.xlarge
+      - cache.r4.2xlarge
+      - cache.r4.4xlarge
+      - cache.r4.8xlarge
+      - cache.r4.16xlarge  
+
+  RedisNodeType:
+    Description: Cache node instance class, e.g. cache.t2.micro(free tier). See https://docs.aws.amazon.com/AmazonElastiCache/latest/UserGuide/CacheNodes.SelectSize.html
+    Type: String
+    Default: cache.t2.micro
+    ConstraintDescription: Node instance class not supported
+    AllowedValues:
+      - cache.t2.micro
+      - cache.t2.small
+      - cache.t2.medium
+      - cache.m4.large
+      - cache.m4.xlarge
+      - cache.m4.2xlarge
+      - cache.m4.4xlarge
+      - cache.m4.10xlarge
+      - cache.r4.large
+      - cache.r4.xlarge
+      - cache.r4.2xlarge
+      - cache.r4.4xlarge
+      - cache.r4.8xlarge
+      - cache.r4.16xlarge  
+
+  MemcacheNodeCount:
+    Description: Number of nodes in the cluster. Only used with memcached engine, for redis this value will be set to 1.
+    Type: Number
+    MinValue: 1
+    MaxValue: 15
+    ConstraintDescription: Node count must be between 1 and 15
+    Default: 1
+
+  PostgresInstanceClass:
+    Default: db.t2.small
+    Type: String
+    Description: "Database instance class, e.g. db.t2.micro (free tier) - Engine support: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html"
+    ConstraintDescription: DB instance class not supported
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+      - db.t2.xlarge
+      - db.t2.2xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m4.2xlarge
+      - db.m4.4xlarge
+      - db.m4.10xlarge
+      - db.m4.16xlarge
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+
+
+Resources:
+
+#  MemcacheStack:
+#    Type: AWS::CloudFormation::Stack
+#    Properties:
+#      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/elasticache.yml
+#      Parameters:
+#        NetworkStackName: !Ref InfrastructureStackName
+#        CacheNodeType: !Ref MemcacheNodeType
+#        CacheEngine:  memcached
+#        CacheNodeCount:  !Ref MemcacheNodeCount
+#        AutoMinorVersionUpgrade:  true
+
+  RedisStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/elasticache.yml
+      Parameters:
+        NetworkStackName: 
+          Fn::ImportValue:
+            !Sub ${InfrastructureStackName}-VpcStackName
+        CacheNodeType: !Ref RedisNodeType
+        CacheEngine:  redis
+        CacheNodeCount:  1    # This is Fixed
+        AutoMinorVersionUpgrade:  true
+
+  PostgresRdsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/db.yml
+      Parameters:
+        NetworkStackName: 
+          Fn::ImportValue: 
+            !Sub ${InfrastructureStackName}-VpcStackName
+        EnvironmentName: !Ref EnvironmentName
+        DatabaseEngine: postgres
+        DatabaseEngineVersion: 11.2
+        DatabaseInstanceClass: !Ref PostgresInstanceClass

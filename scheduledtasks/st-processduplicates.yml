@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates Task definition and Service with related resources
+
+Parameters:
+
+  ScheduleExpression:
+    Type: String
+    Description: This provides the cron expression for the task
+    
+  TaskName:
+    Type: String
+    Description: This provides the name of the task to be executed
+    
+  DockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: lab
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  # stack creation prerequisite:  First create a VPC stack - see README for more info
+  NetworkStackName:
+    Description: Active CloudFormation stack containing VPC resources
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+    Default: 'lab-stack-test-v4-VpcStack-OI6BIPPGMWSL'
+
+    
+Resources:
+
+  ProcessDuplicatesRule:
+    Type : AWS::Events::Rule
+    Properties:
+      Description: "Cron job "
+      RoleArn: !ImportValue ScheduleTaskECSEventRoleArn
+      ScheduleExpression: !Ref ScheduleExpression
+
+      Targets:
+        - Arn: !ImportValue ECSClusterArn
+          Id: !Ref TaskName
+          RoleArn: !ImportValue ScheduleTaskECSEventRoleArn
+          EcsParameters:
+            TaskCount: 1
+            TaskDefinitionArn: !Ref TaskDefProcessDuplicates
+            
+  TaskDefProcessDuplicates:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: portal-stg-scheduledjobs
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - "FARGATE"
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ScheduleTaskECSEventRoleArn
+      ContainerDefinitions:
+        - Name: !Ref TaskName
+          Image: !Ref DockerImage
+          Cpu: 1024
+          Memory: 4096
+          Command: 
+            - "/bin/bash"
+            - /home/selfscore/django/start_scheduled-task.sh !Ref TaskName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'service-web'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'cron'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+ 

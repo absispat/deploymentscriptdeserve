@@ -1,0 +1,22 @@
+[
+    {
+      "ParameterKey": "InfrastructureStackName",
+      "ParameterValue": "lab-stack-test-v4"
+    },
+    {
+      "ParameterKey": "EnvironmentName",
+      "ParameterValue": "lab"
+    },
+    {
+      "ParameterKey": "DockerImage",
+      "ParameterValue": "761539273697.dkr.ecr.us-east-1.amazonaws.com/static-web:Infra-cf-changes-SAHAJ3e"
+    },
+    {
+      "ParameterKey":"TemplateBucket",
+      "ParameterValue": "cloudformation-deserve-cards-test"
+    },
+    {
+      "ParameterKey":"ServiceWebLbCertificateArn",
+      "ParameterValue":"arn:aws:acm:us-east-2:255862263184:certificate/c5fedd56-9484-4a1a-b267-972336ec94c5"
+    }
+]

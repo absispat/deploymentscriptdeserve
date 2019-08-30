@@ -1,0 +1,18 @@
+[
+    {
+      "ParameterKey": "InfrastructureStackName",
+      "ParameterValue": "lab-stack-test-v4"
+    },
+    {
+      "ParameterKey": "EnvironmentName",
+      "ParameterValue": "lab"
+    },
+    {
+      "ParameterKey": "DockerImage",
+      "ParameterValue": "761539273697.dkr.ecr.us-east-1.amazonaws.com/static-web:Infra-cf-changes-SAHAJ3e"
+    },
+    {
+      "ParameterKey":"TemplateBucket",
+      "ParameterValue": "cloudformation-deserve-cards-test"
+    }
+]

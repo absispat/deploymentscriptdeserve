@@ -1,0 +1,247 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates Task definition and Service with related resources
+
+Parameters:
+
+  DockerImage:
+    Type: String
+    Description: This provides the image that need to be deployed
+
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  # stack creation prerequisite:  First create a VPC stack - see README for more info
+  NetworkStackName:
+    Description: Active CloudFormation stack containing VPC resources
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+
+
+  ServiceWebLbCertificateArn:
+    Description: HTTPS SSL Certificate to use for the service loadbalancer
+    Type: String
+
+
+Resources:
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRule
+    Properties:
+      ServiceName: django-web-service
+      TaskDefinition: !Ref Task
+      Cluster: !ImportValue 'ECSCluster'
+      LaunchType: FARGATE
+      DesiredCount: 1
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet1ID
+            - Fn::ImportValue: !Sub ${NetworkStackName}-PrivateSubnet2ID
+          SecurityGroups:
+            - !ImportValue ContainerSecurityGroup
+      LoadBalancers:
+        - ContainerName: static
+          ContainerPort: 8001
+          TargetGroupArn: !Ref ServiceWebTargetGroup
+
+  ServiceWebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: service-web-targetgroup
+      VpcId:
+        Fn::ImportValue: !Sub ${NetworkStackName}-VpcID
+      #changed here
+      Port: 8001
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-499
+      HealthCheckIntervalSeconds: 300
+      HealthCheckPath: /ht
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 10
+      TargetType: ip
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !ImportValue LoadBalancerArn
+      Protocol: HTTPS
+      Port: 443
+      Certificates :
+        - CertificateArn: !Ref ServiceWebLbCertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ServiceWebTargetGroup
+
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ServiceWebTargetGroup
+    Properties:
+      ListenerArn: !Ref LoadBalancerListener
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /*
+      Actions:
+        - TargetGroupArn: !Ref ServiceWebTargetGroup
+          Type: forward
+
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-web
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: static
+          Image: !Ref DockerImage
+          Cpu: 1024
+          Memory: 4096
+          PortMappings:
+            - ContainerPort: 8001
+              Protocol: tcp
+          Command: ["/bin/bash", "/home/selfscore/django/start.sh"]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'service-web'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'static'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+
+  TaskCollectStatic:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-web
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: static
+          Image: !Ref DockerImage
+          Cpu: 1024
+          Memory: 4096
+          Command: ["/bin/bash", "/home/selfscore/django/start_collect_static.sh"]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'service-web'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'static'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+
+  TaskMakeMigrations:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-web
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: static
+          Image: !Ref DockerImage
+          Cpu: 1024
+          Memory: 4096
+          Command: ["/bin/bash", "/home/selfscore/django/start_migrations.sh"]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'service-web'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'static'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+
+  TaskCreateDemoData:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service-web
+      Cpu: 1024
+      Memory: 4096
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ServiceWebExecutionRoleArn
+      TaskRoleArn: !ImportValue ServiceWebTaskRoleArn
+      ContainerDefinitions:
+        - Name: static
+          Image: !Ref DockerImage
+          Cpu: 1024
+          Memory: 4096
+          Command: ["/bin/bash" , "/home/selfscore/django/createdemodata.sh"]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'service-web'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'static'
+          Environment:
+            - Name: ENV
+              Value: !Ref EnvironmentName
+            - Name: ENV_STATE
+              Value: !Ref EnvironmentName
+            - Name: BUILD_FOR_SLM
+              Value: 'off'
+
+#python manage.py create_demo_data
+
+Outputs:
+
+  ApiEndpoint:
+    Description: Application home page
+    Value: !Join ['', ['http://', !ImportValue DomainName]]
+    Export:
+      Name: 'SampleHomePage'
+
+  LoadBalancerListener:
+    Description: listener port 8001
+    Value: !Ref LoadBalancerListener
+    Export:
+      Name: 'LoadBalancerListener'

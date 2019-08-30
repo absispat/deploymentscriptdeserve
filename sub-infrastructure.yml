@@ -1,0 +1,76 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deserved cards cloudformation scripts to generate fargate based infrastructure stack
+
+
+Parameters:
+
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket to get the CloudFormation templates
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name - stage or prod
+    Default: stage
+    AllowedValues:
+      - prod
+      - stage
+      - lab
+    ConstraintDescription: Specify either stage or prod
+
+  # --- Postgres related params ends here ----
+  #NatEIPAllocationId1:
+  #  Description: Allocation Id of NAT elastic IP 1.
+  #  Type: String
+
+  #NatEIPAllocationId2:
+  #  Description: Allocation Id of NAT elastic IP 2. Not required if SingleNatGateway is true.
+  #  Type: String
+  #  Default: ''
+
+Conditions:
+
+   IsProd: !Equals [ !Ref EnvironmentName, prod ]
+
+Resources:
+
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/vpc2.yml
+      #TemplateURL: https://s3.us-east-1.amazonaws.com/cloudformation-deserve-cards-pipeline-lab2/infrastructure/vpc2.yml
+        #AvailabilityZone1: !Select [0, !GetAZs ""]
+        #AvailabilityZone2: !Select [1, !GetAZs ""]
+        #SingleNatGateway: !If [ IsProd, false, true ]
+        #NatEIPAllocationId1: !Ref NatEIPAllocationId1
+        #NatEIPAllocationId2: !Ref NatEIPAllocationId2
+
+  IAMStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/iam.yml
+    DependsOn: VpcStack
+
+  AppClusterStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/infrastructure/app-cluster.yml
+      Parameters:
+        NetworkStackName: !GetAtt VpcStack.Outputs.Name
+    DependsOn: VpcStack
+
+
+Outputs:
+
+  Name:
+    Description: Infrastructure Stack Name
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub ${AWS::StackName}
+
+  VpcStackName:
+    Value: !GetAtt VpcStack.Outputs.Name
+    Export:
+      Name: !Sub ${AWS::StackName}-VpcStackName

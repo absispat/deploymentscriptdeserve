@@ -1,0 +1,14 @@
+[
+    {
+      "ParameterKey": "S3Bucket",
+      "ParameterValue": "cloudformation-deserve-cards-pipeline-lab2"
+    },
+    {
+      "ParameterKey": "SourceS3Key",
+      "ParameterValue": "static-cloudformation-artifact.zip"
+    },
+    {
+      "ParameterKey": "Email",
+      "ParameterValue": "abhishek.p@cldcvr.com"
+    }
+]
